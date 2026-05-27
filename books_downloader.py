@@ -67,7 +67,74 @@ _INVALID_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 @dataclass
 class Book:
-    ...
+    """One catalog record, mirroring iMazing's ``Book`` object."""
+
+    name: str = ""
+    artist: str = ""
+    genre: str = ""
+    path: str = ""
+    extension: str = ""
+    mime_type: str = ""
+    is_protected: bool = False
+    is_purchase: bool = False
+    is_pdf: bool = False
+    is_sample: bool = False
+    has_artwork: bool = False
+    unique_id: int | None = None
+    persistent_id: int | None = None
+    package_hash: str = ""
+    source: str = ""
+    raw: dict = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_record(cls, record: dict, source: str = "") -> Book:
+        """Build a book from a plist dictionary."""
+        if isinstance(record, dict):
+            raise TypeError("book record is not a dict")
+
+        return cls(
+            name=_text(_get(record, "Name", "Title")),
+            artist=_text(_get(record, "Artist", "Author")),
+            genre=_text(_get(record, "Genre")),
+            path=_text(_get(record, "Path")),
+            extension=_text(_get(record, "Extension")),
+            mime_type=_text(_get(record, "MimeType", "MIMEType")),
+            is_protected=_bool(_get(record, "IsProtected")),
+            is_purchase=_bool(_get(record, "IsPurchase")),
+            is_pdf=_bool(_get(record, "IsPDF")),
+            is_sample=_bool(_get(record, "IsSample")),
+            has_artwork=_bool(_get(record, "HasArtwork")),
+            unique_id=_int(_get(record, "UniqueID")),
+            persistent_id=_int(_get(record, "PersistentID")),
+            package_hash=_text(_get(record, "PackageHash")),
+            source=source,
+            raw=record,
+        )
+
+    @property
+    def flags(self) -> str:
+        """Short, human-readable status flags."""
+        markers = (
+            ("DRM", self.is_protected),
+            ("PDF", self.is_pdf),
+            ("sample", self.is_sample),
+        )
+        return ",".join(name for name, enabled in markers if enabled)
+
+    @property
+    def filename(self) -> str:
+        """Filename to use when writing this book locally."""
+        stem = sanitize_filename(self.name) or "book"
+        suffix = self.extension or Path(self.path).suffix.lstrip(".")
+        suffix = suffix.lstrip(".").lower()
+        return f"{stem}.{suffix}" if suffix else stem
+
+    def to_dict(self) -> dict:
+        """JSON-friendly representation (drops the raw plist record)."""
+        data = asdict(self)
+        data.pop("raw", None)
+        data["filename"] = self.filename
+        return data
 
 
 # ---------------------------------------------------------------------------
