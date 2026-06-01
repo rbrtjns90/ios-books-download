@@ -137,6 +137,37 @@ class Book:
         return data
 
 
+def _get(record: dict, *names: str) -> Any:
+    """Case-insensitive lookup for the various plist spellings."""
+    lowered = {str(key).lower(): value for key, value in record.items()}
+    for name in names:
+        key = name.lower()
+        if key in lowered:
+            return lowered[key]
+    return None
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes")
+    return False
+
+
+def _int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Catalog parsing
 # ---------------------------------------------------------------------------
