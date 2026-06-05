@@ -177,6 +177,44 @@ def books_from_plist(payload: bytes, source: str = "") -> list[Book]:
     raise NotImplementedError
 
 
+def _find_records(data: Any) -> list[dict]:
+    """Locate the list of book dictionaries in a plist root object."""
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+
+    if isinstance(data, dict):
+        for key in (
+            "Books",
+            "books",
+            "Purchases",
+            "purchases",
+            "items",
+            "Items",
+        ):
+            value = data.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+
+        # Unknown single-array wrapper: first list of dicts wins.
+        for value in data.values():
+            if isinstance(value, list) and any(
+                isinstance(item, dict) for item in value
+            ):
+                return [item for item in value if isinstance(item, dict)]
+
+        # Some versions key books by asset ID: {id: {Name, Path, ...}}.
+        keyed = [value for value in data.values() if isinstance(value, dict)]
+        if keyed and any(_looks_like_book(value) for value in keyed):
+            return keyed
+
+    return []
+
+
+def _looks_like_book(value: dict) -> bool:
+    keys = {str(key).lower() for key in value}
+    return bool(keys & {"name", "title", "path", "artist", "author"})
+
+
 async def load_catalog(
     fs: Afc,
     *,
@@ -187,6 +225,22 @@ async def load_catalog(
 
 async def scan_books_dir(fs: Afc) -> list[Book]:
     raise NotImplementedError
+
+
+async def _book_metadata(
+    fs: Afc,
+    remote: str,
+    name: str,
+) -> dict[str, Any]:
+    """Best-effort metadata for a scanned book entry."""
+    if await fs.isdir(remote):
+        return await bundle_metadata(fs, remote)
+    if name.lower().endswith((".epub", ".ibooks")):
+        try:
+            return epub_metadata(await fs.read(remote))
+        except Exception:  # noqa: BLE001
+            return {}
+    return {}
 
 
 async def bundle_metadata(fs: Afc, bundle: str) -> dict[str, Any]:
