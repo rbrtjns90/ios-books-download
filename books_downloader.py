@@ -244,7 +244,15 @@ async def _book_metadata(
 
 
 async def bundle_metadata(fs: Afc, bundle: str) -> dict[str, Any]:
-    raise NotImplementedError
+    """Read ``iTunesMetadata.plist`` from an unzipped book bundle."""
+    path = f"{bundle}/iTunesMetadata.plist"
+    if not await fs.exists(path):
+        return {}
+    try:
+        record = plistlib.loads(await fs.read(path))
+    except Exception:  # noqa: BLE001
+        return {}
+    return _record_metadata(record) if isinstance(record, dict) else {}
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +261,29 @@ async def bundle_metadata(fs: Afc, bundle: str) -> dict[str, Any]:
 
 
 def epub_metadata(payload: bytes) -> dict[str, Any]:
-    raise NotImplementedError
+    """Extract title/author metadata from an EPUB or .ibooks archive."""
+    meta: dict[str, Any] = {}
+
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        names = set(archive.namelist())
+
+        opf_path = _opf_path(archive, names)
+        if opf_path:
+            root = ET.fromstring(archive.read(opf_path))
+            meta["name"] = _xml_text(root, "title")
+            meta["artist"] = _xml_text(root, "creator")
+            meta["language"] = _xml_text(root, "language")
+            meta["identifier"] = _xml_text(root, "identifier")
+
+        if "iTunesMetadata.plist" in names:
+            try:
+                record = plistlib.loads(archive.read("iTunesMetadata.plist"))
+            except Exception:  # noqa: BLE001
+                record = None
+            if isinstance(record, dict):
+                meta.update(_record_metadata(record))
+
+    return {key: value for key, value in meta.items() if value}
 
 
 # ---------------------------------------------------------------------------
