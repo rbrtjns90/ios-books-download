@@ -89,7 +89,7 @@ class Book:
     @classmethod
     def from_record(cls, record: dict, source: str = "") -> Book:
         """Build a book from a plist dictionary."""
-        if isinstance(record, dict):
+        if not isinstance(record, dict):
             raise TypeError("book record is not a dict")
 
         return cls(
