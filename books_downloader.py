@@ -286,6 +286,35 @@ def epub_metadata(payload: bytes) -> dict[str, Any]:
     return {key: value for key, value in meta.items() if value}
 
 
+def _opf_path(
+    archive: zipfile.ZipFile,
+    names: set[str],
+) -> str | None:
+    try:
+        container = ET.fromstring(archive.read("META-INF/container.xml"))
+        for element in container.iter():
+            if element.tag.rsplit("}", 1)[-1] == "rootfile":
+                full_path = element.get("full-path")
+                if full_path and full_path in names:
+                    return full_path
+    except Exception:  # noqa: BLE001
+        pass
+
+    for name in names:
+        if name.lower().endswith(".opf"):
+            return name
+    return None
+
+
+def _xml_text(root: ET.Element, local_name: str) -> str:
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1].lower() == local_name.lower():
+            continue
+        if element.text and element.text.strip():
+            return element.text.strip()
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Path handling
 # ---------------------------------------------------------------------------
