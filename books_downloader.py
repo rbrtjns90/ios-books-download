@@ -321,11 +321,44 @@ def _xml_text(root: ET.Element, local_name: str) -> str:
 
 
 def sanitize_filename(name: str, max_len: int = 180) -> str:
-    raise NotImplementedError
+    """Make a book title safe as a local filename."""
+    cleaned = _INVALID_CHARS.sub("_", str(name))
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().strip(".")
+    return cleaned[:max_len].strip()
 
 
 def remote_candidates(path: str, source: str = "") -> list[str]:
-    raise NotImplementedError
+    """Candidate AFC paths for a catalog Path value, best first.
+
+    Purchases plists store bare filenames relative to
+    ``Books/Purchases/``, while sideloaded entries are relative to
+    ``Books/``.
+    """
+    remote = str(path).strip()
+    lowered = remote.lower()
+    for prefix in MEDIA_PREFIXES:
+        if lowered.startswith(prefix):
+            remote = remote[len(prefix) :]
+            break
+    relative = remote.lstrip("/")
+
+    if relative.lower().startswith("books/"):
+        candidates = [relative]
+    elif relative.lower().startswith("purchases/"):
+        candidates = [f"Books/{relative}"]
+    else:
+        candidates = []
+        if "purchases" in source.lower():
+            candidates.append(f"Books/Purchases/{relative}")
+        candidates.append(f"Books/{relative}")
+
+    candidates.append(relative)
+
+    unique: list[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in unique:
+            unique.append(candidate)
+    return unique
 
 
 def normalize_remote(path: str, source: str = "") -> str:
