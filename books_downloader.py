@@ -374,7 +374,18 @@ def unique_destination(
     used: set[str],
     overwrite: bool,
 ) -> Path:
-    raise NotImplementedError
+    """Pick a non-colliding destination filename."""
+    if overwrite:
+        used.add(path.name.lower())
+        return path
+
+    candidate = path
+    counter = 2
+    while candidate.exists() or candidate.name.lower() in used:
+        candidate = path.with_name(f"{path.stem} ({counter}){path.suffix}")
+        counter += 1
+    used.add(candidate.name.lower())
+    return candidate
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +411,21 @@ async def collect_files(
     root: str,
     prefix: str = "",
 ) -> list[str]:
-    raise NotImplementedError
+    """Recursively list files below ``root``, relative to it."""
+    files: list[str] = []
+    try:
+        names = await fs.listdir(root)
+    except Exception:  # noqa: BLE001
+        return files
+
+    for name in names:
+        relative = f"{prefix}{name}"
+        full = f"{root}/{name}"
+        if await fs.isdir(full):
+            files.extend(await collect_files(fs, full, f"{relative}/"))
+        else:
+            files.append(relative)
+    return files
 
 
 async def export_pdf_bundle(
