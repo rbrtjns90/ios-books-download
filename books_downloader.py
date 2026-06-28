@@ -450,7 +450,34 @@ async def write_bundle_archive(
 
 
 def icloud_root_candidates() -> list[Path]:
-    raise NotImplementedError
+    """Per-platform default locations for a synced iCloud Drive folder."""
+    home = Path.home()
+    candidates: list[Path]
+
+    if IS_MACOS:
+        candidates = [
+            home / "Library/Mobile Documents/com~apple~CloudDocs",
+            home / "Library/CloudStorage/iCloud Drive",
+        ]
+    elif IS_WINDOWS:
+        profile = Path(os.environ.get("USERPROFILE", home))
+        candidates = [
+            home / "iCloudDrive",
+            profile / "iCloudDrive",
+            home / "Apple" / "iCloudDrive",
+        ]
+    else:
+        # Linux has no native iCloud client; users typically mount one.
+        candidates = [
+            home / "iCloudDrive",
+            home / "iCloud",
+        ]
+
+    unique: list[Path] = []
+    for candidate in candidates:
+        if candidate not in unique:
+            unique.append(candidate)
+    return unique
 
 
 def default_icloud_root() -> Path | None:
@@ -458,7 +485,21 @@ def default_icloud_root() -> Path | None:
 
 
 def icloud_missing_hint() -> str:
-    raise NotImplementedError
+    """Platform-specific guidance when no iCloud Drive folder is found."""
+    if IS_MACOS:
+        return (
+            "enable iCloud Drive in System Settings, "
+            "or pass --root /path/to/CloudDocs"
+        )
+    if IS_WINDOWS:
+        return (
+            "install iCloud for Windows, "
+            "or pass --root C:\\Users\\you\\iCloudDrive"
+        )
+    return (
+        "iCloud Drive is not native on Linux; mount it "
+        "(for example with rclone) and pass --root"
+    )
 
 
 def iter_book_files(
