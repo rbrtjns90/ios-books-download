@@ -506,14 +506,48 @@ def iter_book_files(
     root: Path,
     extensions: Iterable[str] = BOOK_EXTS,
 ) -> list[Path]:
-    raise NotImplementedError
+    """Book-like files under ``root``, skipping hidden directories."""
+    wanted = tuple(extension.lower() for extension in extensions)
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(
+            name for name in dirnames if not name.startswith(".")
+        )
+        for name in sorted(filenames):
+            if name.lower().endswith(wanted):
+                found.append(Path(dirpath) / name)
+    return found
 
 
 def spotlight_book_files(
     root: Path,
     extensions: Iterable[str] = BOOK_EXTS,
 ) -> list[Path] | None:
-    raise NotImplementedError
+    """Find book files via Spotlight; ``None`` if the index is unavailable."""
+    if not IS_MACOS or shutil.which("mdfind") is None:
+        return None
+
+    wanted = tuple(extension.lower() for extension in extensions)
+    found: set[Path] = set()
+    for extension in wanted:
+        query = f'kMDItemFSName == "*{extension}"c'
+        try:
+            result = subprocess.run(
+                ["mdfind", "-onlyin", str(root), query],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            candidate = Path(line)
+            if candidate.suffix.lower() in wanted:
+                found.add(candidate)
+    return sorted(found)
 
 
 def find_book_files(
