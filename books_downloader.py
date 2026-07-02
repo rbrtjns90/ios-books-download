@@ -308,7 +308,7 @@ def _opf_path(
 
 def _xml_text(root: ET.Element, local_name: str) -> str:
     for element in root.iter():
-        if element.tag.rsplit("}", 1)[-1].lower() == local_name.lower():
+        if element.tag.rsplit("}", 1)[-1].lower() != local_name.lower():
             continue
         if element.text and element.text.strip():
             return element.text.strip()
