@@ -568,7 +568,33 @@ def copy_tree_files(
     dry_run: bool = False,
     log: Callable[..., None] = print,
 ) -> tuple[int, int, int]:
-    raise NotImplementedError
+    """Copy ``files`` under ``root`` into ``outdir``."""
+    copied = skipped = failed = 0
+    for source in files:
+        relative = source.relative_to(root)
+        destination = outdir / relative
+
+        if destination.exists() and not overwrite:
+            log(f"skip  {relative}: exists")
+            skipped += 1
+            continue
+
+        if dry_run:
+            log(f"would copy {relative}")
+            copied += 1
+            continue
+
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+        except OSError as exc:
+            log(f"FAIL  {relative}: {exc}")
+            failed += 1
+            continue
+
+        log(f"ok    {relative} ({source.stat().st_size:,} bytes)")
+        copied += 1
+    return copied, skipped, failed
 
 
 async def cmd_icloud(args: argparse.Namespace) -> int:
@@ -581,7 +607,15 @@ async def cmd_icloud(args: argparse.Namespace) -> int:
 
 
 def backup_selection_rules() -> list:
-    raise NotImplementedError
+    """Backup rules for the Books library, its container, and iCloud Drive."""
+    from pymobiledevice3.services.mobilebackup2 import BackupSelectionRule
+
+    return [
+        BackupSelectionRule("HomeDomain", "Library/Mobile Documents", True),
+        BackupSelectionRule("AppDomain-com.apple.iBooks", "Documents", True),
+        BackupSelectionRule("AppDomain-com.apple.iBooks", "Library", True),
+        BackupSelectionRule("MediaDomain", "Books", True),
+    ]
 
 
 async def cmd_backup(args: argparse.Namespace) -> int:
