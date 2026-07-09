@@ -628,7 +628,36 @@ async def cmd_backup(args: argparse.Namespace) -> int:
 
 
 class Afc:
-    ...
+    """Thin, testable wrapper over pymobiledevice3's async AfcService."""
+
+    def __init__(self, service: Any):
+        self._service = service
+
+    async def exists(self, path: str) -> bool:
+        try:
+            return bool(await self._service.exists(path))
+        except Exception:  # noqa: BLE001
+            return False
+
+    async def read(self, path: str) -> bytes:
+        return bytes(await self._service.get_file_contents(path))
+
+    async def listdir(self, path: str) -> list[str]:
+        return [str(entry) for entry in await self._service.listdir(path)]
+
+    async def stat(self, path: str) -> dict:
+        return await self._service.stat(path)
+
+    async def isdir(self, path: str) -> bool:
+        try:
+            info = await self._service.stat(path)
+        except Exception:  # noqa: BLE001
+            return False
+        return info["st_ifmt"] == "S_IFDIR"
+
+    async def close(self) -> None:
+        with suppress(Exception):
+            await self._service.aclose()
 
 
 @asynccontextmanager
