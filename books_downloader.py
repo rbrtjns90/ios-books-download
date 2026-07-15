@@ -685,7 +685,148 @@ async def cmd_export(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    raise NotImplementedError
+    """Build the command-line parser."""
+    parser = argparse.ArgumentParser(
+        prog="books-downloader",
+        description=(
+            "List and export Books/iBooks content from an iOS device "
+            "(read-only)."
+        ),
+    )
+    parser.add_argument(
+        "-u",
+        "--udid",
+        help="device UDID (default: first connected device)",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    list_parser = subparsers.add_parser(
+        "list", help="list books on the device"
+    )
+    list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="machine-readable output",
+    )
+    list_parser.add_argument(
+        "--no-scan",
+        action="store_true",
+        help="do not scan the books directories when the plists are empty",
+    )
+
+    export_parser = subparsers.add_parser(
+        "export", help="download books to this computer"
+    )
+    export_parser.add_argument(
+        "-o",
+        "--output",
+        default="books-export",
+        help="destination directory (default: books-export)",
+    )
+    export_parser.add_argument(
+        "--skip-drm",
+        action="store_true",
+        help="do not download DRM-protected files",
+    )
+    export_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show what would be copied",
+    )
+    export_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="overwrite existing files",
+    )
+    export_parser.add_argument(
+        "--no-scan",
+        action="store_true",
+        help="do not scan the books directories when the plists are empty",
+    )
+
+    icloud_parser = subparsers.add_parser(
+        "icloud",
+        help="copy books from this Mac's synced iCloud Drive",
+    )
+    icloud_parser.add_argument(
+        "-o",
+        "--output",
+        default="books-export",
+        help="destination directory (default: books-export)",
+    )
+    icloud_parser.add_argument(
+        "--pdf",
+        action="store_true",
+        help="only PDF files (default: PDF, EPUB and .ibooks)",
+    )
+    icloud_parser.add_argument(
+        "--root",
+        help="iCloud Drive folder (default: auto-detect)",
+    )
+    icloud_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show what would be copied",
+    )
+    icloud_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="overwrite existing files",
+    )
+    icloud_parser.add_argument(
+        "--scan",
+        action="store_true",
+        help="walk the filesystem instead of using the Spotlight index",
+    )
+
+    backup_parser = subparsers.add_parser(
+        "backup",
+        help="extract books from a filtered device backup",
+    )
+    backup_parser.add_argument(
+        "-o",
+        "--output",
+        default="books-export",
+        help="destination directory (default: books-export)",
+    )
+    backup_parser.add_argument(
+        "--backup-dir",
+        default=".device-backup",
+        help="where to keep the raw backup (default: .device-backup)",
+    )
+    backup_parser.add_argument(
+        "--password",
+        default="",
+        help="backup password, if the device encrypts backups",
+    )
+    backup_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="force a full backup instead of an incremental one",
+    )
+    backup_parser.add_argument(
+        "--pdf",
+        action="store_true",
+        help="only PDF files (default: PDF, EPUB and .ibooks)",
+    )
+    backup_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="overwrite existing files",
+    )
+    backup_parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="delete the raw backup after extraction",
+    )
+
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
