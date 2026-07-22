@@ -174,7 +174,9 @@ def _int(value: Any) -> int | None:
 
 
 def books_from_plist(payload: bytes, source: str = "") -> list[Book]:
-    raise NotImplementedError
+    """Parse a Books.plist / Purchases.plist payload."""
+    records = _find_records(plistlib.loads(payload))
+    return [Book.from_record(record, source) for record in records]
 
 
 def _find_records(data: Any) -> list[dict]:
