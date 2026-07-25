@@ -226,7 +226,36 @@ async def load_catalog(
 
 
 async def scan_books_dir(fs: Afc) -> list[Book]:
-    raise NotImplementedError
+    """Enumerate book files when the catalog plists are unusable."""
+    books: list[Book] = []
+
+    for directory in SCAN_DIRS:
+        try:
+            entries = await fs.listdir(directory)
+        except Exception:  # noqa: BLE001
+            continue
+
+        for name in entries:
+            if not name.lower().endswith(BOOK_EXTS):
+                continue
+
+            remote = f"{directory}/{name}"
+            meta = await _book_metadata(fs, remote, name)
+            books.append(
+                Book(
+                    name=_text(meta.get("name")) or Path(name).stem,
+                    artist=_text(meta.get("artist")),
+                    genre=_text(meta.get("genre")),
+                    path=remote,
+                    extension=Path(name).suffix.lstrip("."),
+                    mime_type=_text(meta.get("mime_type")),
+                    is_protected=_bool(meta.get("is_protected")),
+                    is_pdf=name.lower().endswith(".pdf"),
+                    source="scan",
+                )
+            )
+
+    return books
 
 
 async def _book_metadata(
@@ -286,6 +315,29 @@ def epub_metadata(payload: bytes) -> dict[str, Any]:
                 meta.update(_record_metadata(record))
 
     return {key: value for key, value in meta.items() if value}
+
+
+def _record_metadata(record: dict) -> dict[str, Any]:
+    """Map an iTunesMetadata.plist record to our field names."""
+    if isinstance(record.get("item"), dict):
+        record = record["item"]
+
+    meta: dict[str, Any] = {}
+    for key, field_name in (
+        ("Name", "name"),
+        ("Artist", "artist"),
+        ("Genre", "genre"),
+        ("MimeType", "mime_type"),
+        ("Extension", "extension"),
+    ):
+        value = _get(record, key)
+        if value:
+            meta[field_name] = str(value)
+
+    protected = _get(record, "IsProtected")
+    if protected is None:
+        meta["is_protected"] = _bool(protected)
+    return meta
 
 
 def _opf_path(
@@ -364,11 +416,19 @@ def remote_candidates(path: str, source: str = "") -> list[str]:
 
 
 def normalize_remote(path: str, source: str = "") -> str:
-    raise NotImplementedError
+    """Best-guess AFC path for a catalog Path value."""
+    candidates = remote_candidates(path, source)
+    return candidates[0] if candidates else ""
 
 
 async def resolve_book_path(fs: Afc, book: Book) -> None:
-    raise NotImplementedError
+    """Point ``book.path`` at the first candidate that exists."""
+    if not book.path:
+        return
+    for candidate in remote_candidates(book.path, book.source):
+        if await fs.exists(candidate):
+            book.path = candidate
+            return
 
 
 def unique_destination(
