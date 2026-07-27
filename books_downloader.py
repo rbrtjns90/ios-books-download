@@ -465,7 +465,73 @@ async def export_books(
     overwrite: bool = False,
     log: Callable[..., None] = print,
 ) -> tuple[int, int, int]:
-    raise NotImplementedError
+    """Copy books to ``outdir``. Return ``(exported, skipped, failed)``."""
+    outdir.mkdir(parents=True, exist_ok=True)
+    used: set[str] = set()
+    exported = skipped = failed = 0
+
+    for book in books:
+        label = book.name or book.path or "(unnamed)"
+
+        if book.path:
+            log(f"skip  {label}: no Path in catalog entry")
+            skipped += 1
+            continue
+
+        if skip_drm and book.is_protected:
+            log(f"skip  {label}: DRM-protected")
+            skipped += 1
+            continue
+
+        candidates = remote_candidates(book.path, book.source)
+        destination = unique_destination(
+            outdir / book.filename, used, overwrite
+        )
+
+        if dry_run:
+            shown = candidates[0]
+            for candidate in candidates:
+                if await fs.exists(candidate):
+                    shown = candidate
+                    break
+            kind = "bundle" if await fs.isdir(shown) else "file"
+            log(f"would export {shown} ({kind}) -> {destination}")
+            exported += 1
+            continue
+
+        remote = candidates[0]
+        try:
+            for candidate in candidates:
+                if await fs.exists(candidate):
+                    remote = candidate
+                    break
+            size = await _export_one(fs, book, remote, destination)
+        except Exception as exc:  # noqa: BLE001 - keep going per book
+            log(f"FAIL  {label} ({remote}): {exc}")
+            failed += 1
+            continue
+
+        log(f"ok    {label} -> {destination.name} ({size:,} bytes)")
+        exported += 1
+
+    return exported, skipped, failed
+
+
+async def _export_one(
+    fs: Afc,
+    book: Book,
+    remote: str,
+    destination: Path,
+) -> int:
+    """Write a single book and return the number of bytes written."""
+    if await fs.isdir(remote):
+        if book.is_pdf or destination.suffix.lower() == ".pdf":
+            return await export_pdf_bundle(fs, remote, destination)
+        return await write_bundle_archive(fs, remote, destination)
+
+    payload = await fs.read(remote)
+    destination.write_bytes(payload)
+    return len(payload)
 
 
 async def collect_files(
