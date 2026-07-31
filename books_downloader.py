@@ -335,7 +335,7 @@ def _record_metadata(record: dict) -> dict[str, Any]:
             meta[field_name] = str(value)
 
     protected = _get(record, "IsProtected")
-    if protected is None:
+    if protected is not None:
         meta["is_protected"] = _bool(protected)
     return meta
 
