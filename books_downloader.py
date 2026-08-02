@@ -561,7 +561,24 @@ async def export_pdf_bundle(
     bundle: str,
     destination: Path,
 ) -> int:
-    raise NotImplementedError
+    """Pull the PDF out of a bundle directory and write it locally."""
+    files = await collect_files(fs, bundle)
+    pdfs = [name for name in files if name.lower().endswith(".pdf")]
+    if not pdfs:
+        raise FileNotFoundError(f"no PDF inside {bundle}")
+
+    chosen = pdfs[0]
+    if len(pdfs) > 1:
+        largest = -1
+        for relative in pdfs:
+            info = await fs.stat(f"{bundle}/{relative}")
+            size = int(info.get("st_size", 0))
+            if size > largest:
+                largest, chosen = size, relative
+
+    payload = await fs.read(f"{bundle}/{chosen}")
+    destination.write_bytes(payload)
+    return len(payload)
 
 
 async def write_bundle_archive(
@@ -569,7 +586,29 @@ async def write_bundle_archive(
     bundle: str,
     destination: Path,
 ) -> int:
-    raise NotImplementedError
+    """Repackage an unzipped EPUB bundle as a ``.epub`` zip."""
+    try:
+        names = await fs.listdir(bundle)
+    except Exception:  # noqa: BLE001
+        names = []
+
+    with zipfile.ZipFile(destination, "w") as archive:
+        mime = b"application/epub+zip"
+        if "mimetype" in names:
+            with suppress(Exception):
+                mime = await fs.read(f"{bundle}/mimetype")
+
+        info = zipfile.ZipInfo("mimetype")
+        info.compress_type = zipfile.ZIP_STORED
+        archive.writestr(info, mime)
+
+        for relative in await collect_files(fs, bundle):
+            if relative == "mimetype":
+                continue
+            data = await fs.read(f"{bundle}/{relative}")
+            archive.writestr(relative, data)
+
+    return destination.stat().st_size
 
 
 # ---------------------------------------------------------------------------
@@ -609,7 +648,11 @@ def icloud_root_candidates() -> list[Path]:
 
 
 def default_icloud_root() -> Path | None:
-    raise NotImplementedError
+    """First existing iCloud Drive candidate for this operating system."""
+    for candidate in icloud_root_candidates():
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
 def icloud_missing_hint() -> str:
