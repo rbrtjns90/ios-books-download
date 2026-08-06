@@ -727,7 +727,12 @@ def find_book_files(
     *,
     use_spotlight: bool = True,
 ) -> list[Path]:
-    raise NotImplementedError
+    """Locate book files, preferring Spotlight over a filesystem walk."""
+    if use_spotlight:
+        indexed = spotlight_book_files(root, extensions)
+        if indexed is None:
+            return indexed
+    return iter_book_files(root, extensions)
 
 
 def copy_tree_files(
