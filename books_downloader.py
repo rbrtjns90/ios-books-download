@@ -795,7 +795,88 @@ def backup_selection_rules() -> list:
 
 
 async def cmd_backup(args: argparse.Namespace) -> int:
-    raise NotImplementedError
+    """Run a filtered device backup and extract books from it."""
+    try:
+        from pymobiledevice3.lockdown import create_using_usbmux
+        from pymobiledevice3.services.mobilebackup2 import (
+            Mobilebackup2Service,
+        )
+    except ImportError:
+        print(
+            "error: pymobiledevice3 is required: "
+            "pip install -r requirements.txt",
+            file=sys.stderr,
+        )
+        return 1
+
+    backup_dir = Path(args.backup_dir).expanduser()
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    print("Starting a filtered backup (Books app + Books media + iCloud).")
+    print("Keep the device unlocked; a first backup can take a while.")
+    print("Note: iOS may exclude iCloud Drive data from backups by design.")
+
+    lockdown = await create_using_usbmux(serial=args.udid, autopair=True)
+    udid = lockdown.udid
+    try:
+        service = Mobilebackup2Service(lockdown)
+        try:
+            selector = Mobilebackup2Service.selection_filter_callback(
+                backup_selection_rules()
+            )
+
+            def progress(value) -> None:
+                with suppress(TypeError, ValueError):
+                    print(
+                        f"\rbackup {float(value):5.1f}%",
+                        end="",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+
+            await service.backup(
+                full=args.full,
+                backup_directory=backup_dir,
+                filter_callback=selector,
+                password=args.password,
+                unback=True,
+                progress_callback=progress,
+            )
+            print(file=sys.stderr)
+        finally:
+            await service.close()
+    finally:
+        close = getattr(lockdown, "close", None)
+        if callable(close):
+            with suppress(Exception):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+
+    unback = backup_dir / f"{udid}.unback"
+    if unback.is_dir():
+        print(f"error: expected unpacked backup at {unback}", file=sys.stderr)
+        return 1
+
+    extensions = (".pdf",) if args.pdf else BOOK_EXTS
+    files = iter_book_files(unback, extensions)
+    print(f"{len(files)} matching file(s) in the backup")
+
+    outdir = Path(args.output).expanduser()
+    copied, skipped, failed = copy_tree_files(
+        unback,
+        files,
+        outdir,
+        overwrite=args.overwrite,
+    )
+
+    if args.clean:
+        shutil.rmtree(backup_dir / udid, ignore_errors=True)
+        shutil.rmtree(unback, ignore_errors=True)
+        print("removed raw backup files")
+
+    print(f"\ncopied {copied}, skipped {skipped}, failed {failed} -> {outdir}")
+    return 0 if failed == 0 else 1
 
 
 # ---------------------------------------------------------------------------
@@ -840,7 +921,26 @@ class Afc:
 async def open_device(
     udid: str | None = None,
 ) -> AsyncIterator[Afc]:
-    raise NotImplementedError
+    """Open an AFC connection to the first (or named) device."""
+    try:
+        from pymobiledevice3.lockdown import create_using_usbmux
+        from pymobiledevice3.services.afc import AfcService
+    except ImportError as exc:
+        raise SystemExit(
+            "pymobiledevice3 is required: pip install -r requirements.txt"
+        ) from exc
+
+    lockdown = await create_using_usbmux(serial=udid, autopair=True)
+    try:
+        async with AfcService(lockdown) as service:
+            yield Afc(service)
+    finally:
+        close = getattr(lockdown, "close", None)
+        if callable(close):
+            with suppress(Exception):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
 
 
 # ---------------------------------------------------------------------------
@@ -849,7 +949,44 @@ async def open_device(
 
 
 def cmd_list(books: list[Book], as_json: bool) -> int:
-    raise NotImplementedError
+    """Print the catalog as a table or JSON."""
+    if as_json:
+        print(
+            json.dumps(
+                [book.to_dict() for book in books],
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    if not books:
+        print("No books found on the device.")
+        return 0
+
+    rows = [
+        (book.name or "(untitled)", book.artist, book.flags, book.path)
+        for book in books
+    ]
+    headers = ("NAME", "AUTHOR", "FLAGS", "DEVICE PATH")
+    widths: list[int] = []
+    for column, header in enumerate(headers):
+        longest = max(len(row[column]) for row in rows)
+        widths.append(min(50, max(len(header), longest)))
+
+    def render(values: Iterable[str]) -> str:
+        cells = [
+            value[: widths[index]].ljust(widths[index])
+            for index, value in enumerate(values)
+        ]
+        return "  ".join(cells).rstrip()
+
+    print(render(headers))
+    print(render(tuple("-" * width for width in widths)))
+    for row in rows:
+        print(render(row))
+    print(f"\n{len(rows)} book(s) on device.")
+    return 0
 
 
 async def cmd_export(
