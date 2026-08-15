@@ -40,7 +40,21 @@ OPF_XML = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def make_epub() -> bytes:
-    raise NotImplementedError
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("META-INF/container.xml", CONTAINER_XML)
+        archive.writestr("OEBPS/content.opf", OPF_XML)
+        archive.writestr(
+            "iTunesMetadata.plist",
+            plistlib.dumps(
+                {
+                    "Name": "iTunes Title",
+                    "Artist": "iTunes Author",
+                    "IsProtected": False,
+                }
+            ),
+        )
+    return buf.getvalue()
 
 
 class FakeFS:
