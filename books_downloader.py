@@ -854,7 +854,7 @@ async def cmd_backup(args: argparse.Namespace) -> int:
                     await result
 
     unback = backup_dir / f"{udid}.unback"
-    if unback.is_dir():
+    if not unback.is_dir():
         print(f"error: expected unpacked backup at {unback}", file=sys.stderr)
         return 1
 
