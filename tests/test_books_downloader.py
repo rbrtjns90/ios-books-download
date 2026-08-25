@@ -108,6 +108,26 @@ class EpubTests(unittest.TestCase):
 class PathTests(unittest.TestCase):
     ...
 
+    def test_purchases_candidates_prefer_purchases_dir(self):
+        source = "Books/Purchases/Purchases.plist"
+        self.assertEqual(
+            bd.remote_candidates("x.epub", source)[0], "Books/Purchases/x.epub"
+        )
+        self.assertIn("Books/x.epub", bd.remote_candidates("x.epub", source))
+
+    def test_sanitize(self):
+        self.assertEqual(bd.sanitize_filename('a/b:c*d?"e'), "a_b_c_d__e")
+        self.assertEqual(bd.sanitize_filename("   "), "")
+
+    def test_unique_destination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "x.epub"
+            used: set[str] = set()
+            first = bd.unique_destination(target, used, overwrite=False)
+            second = bd.unique_destination(target, used, overwrite=False)
+            self.assertEqual(first.name, "x.epub")
+            self.assertEqual(second.name, "x (2).epub")
+
 
 class ExportTests(unittest.IsolatedAsyncioTestCase):
     ...
