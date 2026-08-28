@@ -134,4 +134,58 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
 
 
 class LocalSourceTests(unittest.TestCase):
-    ...
+    def test_iter_book_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sub").mkdir()
+            (root / ".hidden").mkdir()
+            (root / "a.pdf").write_bytes(b"%PDF")
+            (root / "sub" / "b.epub").write_bytes(b"EPUB")
+            (root / ".hidden" / "c.pdf").write_bytes(b"%PDF")
+            (root / "notes.txt").write_text("x")
+
+            files = bd.iter_book_files(root)
+            names = sorted(p.relative_to(root).as_posix() for p in files)
+            self.assertEqual(names, ["a.pdf", "sub/b.epub"])
+
+            pdfs = bd.iter_book_files(root, (".pdf",))
+            self.assertEqual([p.name for p in pdfs], ["a.pdf"])
+
+    def test_copy_tree_files_preserves_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "root"
+            (root / "sub").mkdir(parents=True)
+            (root / "a.pdf").write_bytes(b"A")
+            (root / "sub" / "b.pdf").write_bytes(b"B")
+            out = Path(tmp) / "out"
+
+            copied, skipped, failed = bd.copy_tree_files(
+                root, bd.iter_book_files(root), out, log=lambda *_: None
+            )
+            self.assertEqual((copied, skipped, failed), (2, 0, 0))
+            self.assertEqual((out / "a.pdf").read_bytes(), b"A")
+            self.assertEqual((out / "sub" / "b.pdf").read_bytes(), b"B")
+
+    def test_copy_tree_files_skips_existing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "root"
+            root.mkdir()
+            (root / "a.pdf").write_bytes(b"new")
+            out = Path(tmp) / "out"
+            out.mkdir()
+            (out / "a.pdf").write_bytes(b"old")
+
+            copied, skipped, _ = bd.copy_tree_files(
+                root, bd.iter_book_files(root), out, log=lambda *_: None
+            )
+            self.assertEqual((copied, skipped), (0, 1))
+            self.assertEqual((out / "a.pdf").read_bytes(), b"old")
+
+            bd.copy_tree_files(
+                root,
+                bd.iter_book_files(root),
+                out,
+                overwrite=True,
+                log=lambda *_: None,
+            )
+            self.assertEqual((out / "a.pdf").read_bytes(), b"new")
