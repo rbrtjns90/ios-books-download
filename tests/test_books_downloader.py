@@ -189,3 +189,30 @@ class LocalSourceTests(unittest.TestCase):
                 log=lambda *_: None,
             )
             self.assertEqual((out / "a.pdf").read_bytes(), b"new")
+
+    def test_icloud_root_candidates(self):
+        candidates = bd.icloud_root_candidates()
+        self.assertTrue(candidates)
+        self.assertTrue(all(isinstance(path, Path) for path in candidates))
+        self.assertEqual(len(candidates), len(set(candidates)))
+
+    def test_icloud_candidates_per_platform(self):
+        with mock.patch.object(bd, "IS_MACOS", True), mock.patch.object(
+            bd, "IS_WINDOWS", False
+        ):
+            mac = bd.icloud_root_candidates()
+        self.assertTrue(any("Mobile Documents" in str(p) for p in mac))
+
+        with mock.patch.object(bd, "IS_MACOS", False), mock.patch.object(
+            bd, "IS_WINDOWS", True
+        ):
+            windows = bd.icloud_root_candidates()
+            hint = bd.icloud_missing_hint()
+        self.assertTrue(any(p.name == "iCloudDrive" for p in windows))
+        self.assertIn("iCloud for Windows", hint)
+
+        with mock.patch.object(bd, "IS_MACOS", False), mock.patch.object(
+            bd, "IS_WINDOWS", False
+        ):
+            linux = bd.icloud_root_candidates()
+        self.assertTrue(linux)
