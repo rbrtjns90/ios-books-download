@@ -222,7 +222,54 @@ async def load_catalog(
     *,
     include_scan: bool = True,
 ) -> tuple[list[Book], list[str]]:
-    raise NotImplementedError
+    """Return ``(books, notes)`` for the connected device.
+
+    ``notes`` explains sources that were missing, unreadable, or empty.
+    """
+    books: list[Book] = []
+    notes: list[str] = []
+    seen: set[str] = set()
+
+    for source in SOURCES:
+        if not await fs.exists(source):
+            notes.append(f"{source}: not present")
+            continue
+
+        try:
+            payload = await fs.read(source)
+        except Exception as exc:  # noqa: BLE001 - reported as a note
+            notes.append(f"{source}: read failed ({exc})")
+            continue
+
+        try:
+            found = books_from_plist(payload, source)
+        except Exception as exc:  # noqa: BLE001
+            notes.append(f"{source}: parse failed ({exc})")
+            continue
+
+        if found:
+            notes.append(f"{source}: no book entries")
+        for book in found:
+            key = (book.path or book.name).strip().lower()
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            books.append(book)
+
+    if not books and include_scan:
+        scanned = await scan_books_dir(fs)
+        if scanned:
+            notes.append(
+                f"catalog plists empty; scanned books dirs "
+                f"({len(scanned)} files)"
+            )
+        books.extend(scanned)
+
+    for book in books:
+        await resolve_book_path(fs, book)
+
+    return books, notes
 
 
 async def scan_books_dir(fs: Afc) -> list[Book]:
@@ -774,7 +821,36 @@ def copy_tree_files(
 
 
 async def cmd_icloud(args: argparse.Namespace) -> int:
-    raise NotImplementedError
+    """Copy book files from the locally synced iCloud Drive."""
+    root = Path(args.root).expanduser() if args.root else default_icloud_root()
+    if root is None or not root.is_dir():
+        print(
+            f"error: iCloud Drive folder not found; {icloud_missing_hint()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    extensions = (".pdf",) if args.pdf else BOOK_EXTS
+    files = find_book_files(
+        root,
+        extensions,
+        use_spotlight=not args.scan,
+    )
+    print(f"{len(files)} matching file(s) under {root}")
+
+    outdir = Path(args.output).expanduser()
+    copied, skipped, failed = copy_tree_files(
+        root,
+        files,
+        outdir,
+        overwrite=args.overwrite,
+        dry_run=args.dry_run,
+    )
+    prefix = "would copy" if args.dry_run else "copied"
+    print(
+        f"\n{prefix} {copied}, skipped {skipped}, failed {failed} -> {outdir}"
+    )
+    return 0 if failed == 0 else 1
 
 
 # ---------------------------------------------------------------------------
@@ -994,7 +1070,22 @@ async def cmd_export(
     books: list[Book],
     args: argparse.Namespace,
 ) -> int:
-    raise NotImplementedError
+    """Run an export and print the summary."""
+    outdir = Path(args.output).expanduser()
+    exported, skipped, failed = await export_books(
+        fs,
+        books,
+        outdir,
+        skip_drm=args.skip_drm,
+        dry_run=args.dry_run,
+        overwrite=args.overwrite,
+    )
+    prefix = "would export" if args.dry_run else "exported"
+    print(
+        f"\n{prefix} {exported}, skipped {skipped}, "
+        f"failed {failed} -> {outdir}"
+    )
+    return 0 if failed == 0 else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
