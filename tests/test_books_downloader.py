@@ -85,7 +85,31 @@ class FakeFS:
 
 
 class CatalogTests(unittest.IsolatedAsyncioTestCase):
-    ...
+    async def test_array_root(self):
+        payload = plistlib.dumps(
+            [{"Name": "Dune", "Artist": "Herbert", "Path": "Books/dune.epub"}]
+        )
+        books = bd.books_from_plist(payload, "Books/Books.plist")
+        self.assertEqual(len(books), 1)
+        self.assertEqual(books[0].name, "Dune")
+        self.assertEqual(books[0].artist, "Herbert")
+        self.assertEqual(books[0].filename, "Dune.epub")
+
+    async def test_dict_root_and_case_insensitive_keys(self):
+        payload = plistlib.dumps(
+            {
+                "Books": [
+                    {
+                        "name": "Lower",
+                        "AUTHOR": "Someone",
+                        "path": "Books/l.epub",
+                    }
+                ]
+            }
+        )
+        books = bd.books_from_plist(payload)
+        self.assertEqual(books[0].name, "Lower")
+        self.assertEqual(books[0].artist, "Someone")
 
 
 class EpubTests(unittest.TestCase):
