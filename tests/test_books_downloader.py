@@ -111,6 +111,28 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(books[0].name, "Lower")
         self.assertEqual(books[0].artist, "Someone")
 
+    async def test_bool_and_int_coercion(self):
+        payload = plistlib.dumps(
+            {
+                "Books": [
+                    {
+                        "Name": "X",
+                        "IsProtected": 1,
+                        "IsPDF": "true",
+                        "UniqueID": 42,
+                    }
+                ]
+            }
+        )
+        book = bd.books_from_plist(payload)[0]
+        self.assertTrue(book.is_protected)
+        self.assertTrue(book.is_pdf)
+        self.assertEqual(book.unique_id, 42)
+
+    async def test_unknown_wrapper_list(self):
+        payload = plistlib.dumps({"SomeKey": [{"Name": "Y"}]})
+        self.assertEqual(bd.books_from_plist(payload)[0].name, "Y")
+
 
 class EpubTests(unittest.TestCase):
     ...
