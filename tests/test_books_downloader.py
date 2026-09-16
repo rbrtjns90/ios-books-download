@@ -133,9 +133,19 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
         payload = plistlib.dumps({"SomeKey": [{"Name": "Y"}]})
         self.assertEqual(bd.books_from_plist(payload)[0].name, "Y")
 
+    async def test_dict_keyed_by_asset_id(self):
+        payload = plistlib.dumps(
+            {"asset-1": {"Name": "Z", "Path": "Books/z.epub"}}
+        )
+        books = bd.books_from_plist(payload)
+        self.assertEqual(books[0].name, "Z")
+
 
 class EpubTests(unittest.TestCase):
-    ...
+    def test_itunes_metadata_wins(self):
+        meta = bd.epub_metadata(make_epub())
+        self.assertEqual(meta["name"], "iTunes Title")
+        self.assertEqual(meta["artist"], "iTunes Author")
 
     def test_opf_fallback_without_itunes_file(self):
         buf = io.BytesIO()
