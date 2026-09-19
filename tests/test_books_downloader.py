@@ -162,7 +162,14 @@ class EpubTests(unittest.TestCase):
 
 
 class PathTests(unittest.TestCase):
-    ...
+    def test_normalize_variants(self):
+        self.assertEqual(bd.normalize_remote("/Books/a.epub"), "Books/a.epub")
+        self.assertEqual(bd.normalize_remote("Books/a.epub"), "Books/a.epub")
+        self.assertEqual(bd.normalize_remote("a.epub"), "Books/a.epub")
+        self.assertEqual(
+            bd.normalize_remote("/private/var/mobile/Media/Books/a.epub"),
+            "Books/a.epub",
+        )
 
     def test_purchases_candidates_prefer_purchases_dir(self):
         source = "Books/Purchases/Purchases.plist"
@@ -251,6 +258,13 @@ class LocalSourceTests(unittest.TestCase):
         self.assertTrue(candidates)
         self.assertTrue(all(isinstance(path, Path) for path in candidates))
         self.assertEqual(len(candidates), len(set(candidates)))
+
+    def test_find_book_files_walk_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.pdf").write_bytes(b"x")
+            files = bd.find_book_files(root, (".pdf",), use_spotlight=False)
+            self.assertEqual([p.name for p in files], ["a.pdf"])
 
     def test_icloud_candidates_per_platform(self):
         with mock.patch.object(bd, "IS_MACOS", True), mock.patch.object(
