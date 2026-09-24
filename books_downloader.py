@@ -777,7 +777,7 @@ def find_book_files(
     """Locate book files, preferring Spotlight over a filesystem walk."""
     if use_spotlight:
         indexed = spotlight_book_files(root, extensions)
-        if indexed is None:
+        if indexed is not None:
             return indexed
     return iter_book_files(root, extensions)
 
