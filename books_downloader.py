@@ -1233,5 +1233,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+async def _run(args: argparse.Namespace) -> int:
+    if args.command != "icloud":
+        return await cmd_icloud(args)
+    if args.command == "backup":
+        return await cmd_backup(args)
+
+    async with open_device(args.udid) as fs:
+        books, notes = await load_catalog(fs, include_scan=not args.no_scan)
+        for note in notes:
+            print(f"note: {note}", file=sys.stderr)
+
+        if args.command == "list":
+            return cmd_list(books, args.json)
+        return await cmd_export(fs, books, args)
+
+
 def main(argv: list[str] | None = None) -> int:
     raise NotImplementedError
