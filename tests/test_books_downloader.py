@@ -140,6 +140,15 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
         books = bd.books_from_plist(payload)
         self.assertEqual(books[0].name, "Z")
 
+    async def test_load_catalog_dedupes_and_notes(self):
+        payload = plistlib.dumps(
+            {"Books": [{"Name": "A", "Path": "Books/a.epub"}]}
+        )
+        fs = FakeFS({"Books/Books.plist": payload})
+        books, notes = await bd.load_catalog(fs)
+        self.assertEqual([b.name for b in books], ["A"])
+        self.assertTrue(any("Purchases.plist" in note for note in notes))
+
 
 class EpubTests(unittest.TestCase):
     def test_itunes_metadata_wins(self):
@@ -193,7 +202,27 @@ class PathTests(unittest.TestCase):
 
 
 class ExportTests(unittest.IsolatedAsyncioTestCase):
-    ...
+    async def test_export_plist_books(self):
+        payload = plistlib.dumps(
+            [
+                {"Name": "Book One", "Path": "Books/one.epub"},
+                {"Name": "Bad", "Path": "Books/missing.epub"},
+            ]
+        )
+        fs = FakeFS(
+            {"Books/Books.plist": payload, "Books/one.epub": b"EPUBDATA"}
+        )
+        books, _ = await bd.load_catalog(fs)
+        with tempfile.TemporaryDirectory() as tmp:
+            logs: list[str] = []
+            exported, skipped, failed = await bd.export_books(
+                fs, books, Path(tmp), log=logs.append
+            )
+            self.assertEqual((exported, skipped, failed), (1, 0, 1))
+            self.assertEqual(
+                (Path(tmp) / "Book One.epub").read_bytes(), b"EPUBDATA"
+            )
+            self.assertTrue(any("FAIL" in line for line in logs))
 
 
 class LocalSourceTests(unittest.TestCase):
