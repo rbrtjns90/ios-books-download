@@ -520,7 +520,7 @@ async def export_books(
     for book in books:
         label = book.name or book.path or "(unnamed)"
 
-        if book.path:
+        if not book.path:
             log(f"skip  {label}: no Path in catalog entry")
             skipped += 1
             continue
