@@ -247,7 +247,7 @@ async def load_catalog(
             notes.append(f"{source}: parse failed ({exc})")
             continue
 
-        if found:
+        if not found:
             notes.append(f"{source}: no book entries")
         for book in found:
             key = (book.path or book.name).strip().lower()
