@@ -1234,7 +1234,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run(args: argparse.Namespace) -> int:
-    if args.command != "icloud":
+    if args.command == "icloud":
         return await cmd_icloud(args)
     if args.command == "backup":
         return await cmd_backup(args)
