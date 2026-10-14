@@ -224,6 +224,29 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(any("FAIL" in line for line in logs))
 
+    async def test_skip_drm(self):
+        payload = plistlib.dumps(
+            [{"Name": "Locked", "Path": "Books/l.epub", "IsProtected": True}]
+        )
+        fs = FakeFS({"Books/Books.plist": payload})
+        books, _ = await bd.load_catalog(fs)
+        with tempfile.TemporaryDirectory() as tmp:
+            exported, skipped, failed = await bd.export_books(
+                fs, books, Path(tmp), skip_drm=True, log=lambda *_: None
+            )
+            self.assertEqual((exported, skipped, failed), (0, 1, 0))
+
+    async def test_dry_run_writes_nothing(self):
+        payload = plistlib.dumps([{"Name": "Preview", "Path": "Books/p.epub"}])
+        fs = FakeFS({"Books/Books.plist": payload, "Books/p.epub": b"X"})
+        books, _ = await bd.load_catalog(fs)
+        with tempfile.TemporaryDirectory() as tmp:
+            exported, _, _ = await bd.export_books(
+                fs, books, Path(tmp), dry_run=True, log=lambda *_: None
+            )
+            self.assertEqual(exported, 1)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
 
 class LocalSourceTests(unittest.TestCase):
     def test_iter_book_files(self):
