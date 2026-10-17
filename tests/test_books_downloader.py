@@ -247,6 +247,22 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(exported, 1)
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
+    async def test_scan_fallback(self):
+        fs = FakeFS(
+            {"Books/solo.epub": make_epub()},
+            {"Books": ["solo.epub", "notes.txt"]},
+        )
+        books, notes = await bd.load_catalog(fs)
+        self.assertEqual(len(books), 1)
+        self.assertEqual(books[0].name, "iTunes Title")
+        self.assertEqual(books[0].source, "scan")
+        self.assertTrue(any("scanned books dirs" in note for note in notes))
+
+    async def test_scan_fallback_disabled(self):
+        fs = FakeFS({"Books/solo.epub": make_epub()}, {"Books": ["solo.epub"]})
+        books, _ = await bd.load_catalog(fs, include_scan=False)
+        self.assertEqual(books, [])
+
 
 class LocalSourceTests(unittest.TestCase):
     def test_iter_book_files(self):
