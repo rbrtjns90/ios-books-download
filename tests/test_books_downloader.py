@@ -263,6 +263,39 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
         books, _ = await bd.load_catalog(fs, include_scan=False)
         self.assertEqual(books, [])
 
+    async def test_purchases_bundle_is_repackaged(self):
+        payload = plistlib.dumps(
+            {"Books": [{"Name": "Bundle Book", "Path": "b1.epub"}]}
+        )
+        fs = FakeFS(
+            files={
+                "Books/Purchases/Purchases.plist": payload,
+                "Books/Purchases/b1.epub/mimetype": b"application/epub+zip",
+                "Books/Purchases/b1.epub/META-INF/container.xml": (
+                    b"<container/>"
+                ),
+            },
+            dirs={
+                "Books/Purchases/b1.epub": ["mimetype", "META-INF"],
+                "Books/Purchases/b1.epub/META-INF": ["container.xml"],
+            },
+        )
+        books, _ = await bd.load_catalog(fs)
+        self.assertEqual(books[0].path, "Books/Purchases/b1.epub")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            exported, _, failed = await bd.export_books(
+                fs, books, Path(tmp), log=lambda *_: None
+            )
+            self.assertEqual((exported, failed), (1, 0))
+            archive = Path(tmp) / "Bundle Book.epub"
+            self.assertTrue(archive.is_file())
+            with zipfile.ZipFile(archive) as zf:
+                infos = zf.infolist()
+                self.assertEqual(infos[0].filename, "mimetype")
+                self.assertEqual(infos[0].compress_type, zipfile.ZIP_STORED)
+                self.assertIn("META-INF/container.xml", zf.namelist())
+
 
 class LocalSourceTests(unittest.TestCase):
     def test_iter_book_files(self):
