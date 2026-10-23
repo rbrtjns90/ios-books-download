@@ -296,6 +296,44 @@ class ExportTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(infos[0].compress_type, zipfile.ZIP_STORED)
                 self.assertIn("META-INF/container.xml", zf.namelist())
 
+    async def test_pdf_file_is_copied(self):
+        payload = plistlib.dumps(
+            [{"Name": "Doc", "Path": "Books/doc.pdf", "IsPDF": True}]
+        )
+        fs = FakeFS(
+            {"Books/Books.plist": payload, "Books/doc.pdf": b"%PDF-1.4"}
+        )
+        books, _ = await bd.load_catalog(fs)
+        with tempfile.TemporaryDirectory() as tmp:
+            exported, _, failed = await bd.export_books(
+                fs, books, Path(tmp), log=lambda *_: None
+            )
+            self.assertEqual((exported, failed), (1, 0))
+            self.assertEqual((Path(tmp) / "Doc.pdf").read_bytes(), b"%PDF-1.4")
+
+    async def test_pdf_bundle_extracts_inner_pdf(self):
+        payload = plistlib.dumps(
+            [{"Name": "Scanned", "Path": "p1.pdf", "IsPDF": True}]
+        )
+        fs = FakeFS(
+            files={
+                "Books/Purchases/Purchases.plist": payload,
+                "Books/Purchases/p1.pdf/the.pdf": b"%PDF-1.7",
+                "Books/Purchases/p1.pdf/preview.jpg": b"jpg",
+            },
+            dirs={"Books/Purchases/p1.pdf": ["the.pdf", "preview.jpg"]},
+        )
+        books, _ = await bd.load_catalog(fs)
+        self.assertEqual(books[0].path, "Books/Purchases/p1.pdf")
+        with tempfile.TemporaryDirectory() as tmp:
+            exported, _, failed = await bd.export_books(
+                fs, books, Path(tmp), log=lambda *_: None
+            )
+            self.assertEqual((exported, failed), (1, 0))
+            self.assertEqual(
+                (Path(tmp) / "Scanned.pdf").read_bytes(), b"%PDF-1.7"
+            )
+
 
 class LocalSourceTests(unittest.TestCase):
     def test_iter_book_files(self):
