@@ -1250,4 +1250,21 @@ async def _run(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    raise NotImplementedError
+    """CLI entry point."""
+    args = build_parser().parse_args(argv)
+
+    try:
+        return asyncio.run(_run(args))
+    except KeyboardInterrupt:
+        print("\ninterrupted", file=sys.stderr)
+        return 130
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - top-level CLI boundary
+        print(f"error: {exc}", file=sys.stderr)
+        print(
+            "hint: unlock the device and tap Trust; "
+            "check `pymobiledevice3 usbmux list`",
+            file=sys.stderr,
+        )
+        return 1
