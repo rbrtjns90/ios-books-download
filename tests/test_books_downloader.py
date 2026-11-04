@@ -425,3 +425,7 @@ class LocalSourceTests(unittest.TestCase):
         ):
             linux = bd.icloud_root_candidates()
         self.assertTrue(linux)
+
+
+if __name__ == "__main__":
+    unittest.main()
