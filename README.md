@@ -59,3 +59,43 @@ python3 books_downloader.py list -u <UDID>
 ` (2)`, ` (3)`, … suffix unless `--overwrite` is given. Exit code is non-zero
 if any file failed.
 
+## iCloud Drive mode (local folder)
+
+PDFs you saved in Files/iCloud Drive are not part of the Books library and
+are not reachable over AFC. Because iCloud Drive syncs to your computer,
+copy them from there instead:
+
+```sh
+python3 books_downloader.py icloud --pdf -o PDFs
+python3 books_downloader.py icloud --pdf --dry-run
+```
+
+By default it takes PDF, EPUB and `.ibooks`; `--pdf` restricts to PDFs.
+Relative paths are preserved and hidden folders are skipped. `--root`
+overrides auto-detection (`~/Library/Mobile Documents/com~apple~CloudDocs`).
+
+Locations are detected per platform: macOS checks
+`~/Library/Mobile Documents/com~apple~CloudDocs` (and `CloudStorage`),
+Windows checks `%USERPROFILE%\iCloudDrive`, and Linux checks
+`~/iCloudDrive` / `~/iCloud` (iCloud has to be mounted there, e.g. with
+rclone). Pass `--root` if yours is elsewhere.
+
+On macOS the Spotlight index is used and returns in under a second. On
+Windows and Linux it falls back to a filesystem walk, which can be slow on
+a large tree; `--scan` forces the walk on macOS too.
+
+## Backup mode (phone-side)
+
+For data AFC cannot reach — the Books app container and the iCloud Drive
+cache — run a filtered backup that keeps only the Books app domain, Books
+media, and `Library/Mobile Documents`:
+
+```sh
+python3 books_downloader.py backup --pdf -o PDFs
+```
+
+Caveats: the first backup is full (so allow time), the device must stay
+unlocked, and iOS may exclude iCloud Drive content from backups by design.
+`--backup-dir` sets where the raw backup lives, `--password` is required for
+encrypted backups, and `--clean` removes the raw backup afterwards.
+
