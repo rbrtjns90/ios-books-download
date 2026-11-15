@@ -99,3 +99,24 @@ unlocked, and iOS may exclude iCloud Drive content from backups by design.
 `--backup-dir` sets where the raw backup lives, `--password` is required for
 encrypted backups, and `--clean` removes the raw backup afterwards.
 
+## Notes
+
+- **Plists first, scan second.** If both plists are missing or empty (some iOS
+  versions), the tool lists `Books/` and pulls title/author from each EPUB's
+  `META-INF/container.xml` → OPF and `iTunesMetadata.plist`.
+- **DRM.** Purchased books are flagged `IsProtected`; they are copied as
+  encrypted FairPlay containers and cannot be opened outside Apple's readers.
+  Use `--skip-drm` to leave them out.
+- **Purchased books are bundle directories.** On recent iOS versions a
+  purchase lives at `Books/Purchases/<id>.epub/` as an *unzipped* EPUB
+  (plus `iTunesMetadata.plist` and artwork). The exporter repackages those
+  into a normal `.epub` zip, with `mimetype` first and uncompressed as the
+  format requires.
+- **PDFs are supported too.** A plain `.pdf` entry is copied byte-for-byte.
+  If iOS stores a PDF as a bundle directory, the exporter pulls the inner
+  PDF out (largest match if several are present).
+- **Filenames** come from the book's `Name` field, sanitised for the local
+  filesystem.
+- **No writing.** This tool is read-only. Importing books requires Apple's
+  AirTraffic sync protocol, which is not implemented here.
+
