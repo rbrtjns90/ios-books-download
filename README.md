@@ -120,3 +120,11 @@ encrypted backups, and `--clean` removes the raw backup afterwards.
 - **No writing.** This tool is read-only. Importing books requires Apple's
   AirTraffic sync protocol, which is not implemented here.
 
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `DeviceNotFoundError` | Unlock the phone and tap **Trust**; check `pymobiledevice3 usbmux list` |
+| `could not start service com.apple.afc` | Reconnect; make sure the device is paired |
+| `note: Books/Books.plist: not present` | Normal on some versions — the scan fallback handles it |
+| Empty list | The Books library may be empty, or books live only in iCloud |
